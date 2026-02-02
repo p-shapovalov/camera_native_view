@@ -1,0 +1,26 @@
+name: camerapreview
+description: A Flutter plugin for camera preview using CameraX with SurfaceView rendering below the Flutter layer.
+version: 0.0.1
+
+environment:
+  sdk: ">=3.7.0 <4.0.0"
+  flutter: ">=3.29.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_native_view_android:
+    git:
+      url: https://github.com/p-shapovalov/flutter_native_view_android
+      ref: master
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: io.flutter.plugins.camerapreview
+        pluginClass: CameraPreviewPlugin
