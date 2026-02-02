@@ -72,6 +72,16 @@ class CameraPreviewPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCa
                 CameraSurfacePreview.resetScaleStatic()
                 result.success(null)
             }
+            "takePicture" -> {
+                CameraSurfacePreview.takePictureStatic(
+                    onSuccess = { savedPath ->
+                        result.success(savedPath)
+                    },
+                    onError = { error ->
+                        result.error("CAPTURE_ERROR", error, null)
+                    }
+                )
+            }
             else -> result.notImplemented()
         }
     }

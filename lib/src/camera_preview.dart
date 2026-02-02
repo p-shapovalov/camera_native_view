@@ -49,6 +49,23 @@ class CameraPreviewController {
   Future<void> resetZoom() async {
     await _channel.invokeMethod('resetZoom');
   }
+
+  /// Takes a picture and returns the file path.
+  ///
+  /// Returns the path to the captured image, or null if capture fails.
+  Future<String?> takePicture() async {
+    return await _channel.invokeMethod<String>('takePicture');
+  }
+
+  /// Shows the camera preview native view.
+  static Future<bool> showView() {
+    return NativeViewChannel.instance.showView(_kCameraPreviewViewKey);
+  }
+
+  /// Hides the camera preview native view.
+  static Future<bool> hideView() {
+    return NativeViewChannel.instance.hideView(_kCameraPreviewViewKey);
+  }
 }
 
 /// A widget that displays a camera preview using a native SurfaceView

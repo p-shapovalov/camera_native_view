@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:camerapreview/camerapreview.dart';
 import 'package:flutter_native_view_android/flutter_native_view_android.dart';
@@ -37,6 +39,63 @@ class _CameraPageState extends State<CameraPage> {
   bool _isTorchOn = false;
   double _zoomLevel = 0.0;
   bool _isReady = false;
+  bool _isCapturing = false;
+
+  Future<void> _takePicture() async {
+    if (_isCapturing) return;
+
+    setState(() => _isCapturing = true);
+
+    try {
+      final path = await _controller.takePicture();
+
+      if (mounted) {
+        if (path != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Photo saved: ${path.split('/').last}'),
+              action: SnackBarAction(
+                label: 'View',
+                onPressed: () => _showCapturedImage(path),
+              ),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to capture photo')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to capture: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isCapturing = false);
+      }
+    }
+  }
+
+  void _showCapturedImage(String path) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Image.file(File(path)),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -127,6 +186,33 @@ class _CameraPageState extends State<CameraPage> {
                             },
                           ),
 
+                          // Capture button
+                          GestureDetector(
+                            onTap: _isCapturing ? null : _takePicture,
+                            child: Container(
+                              width: 72,
+                              height: 72,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 4),
+                                color: _isCapturing ? Colors.grey : Colors.white24,
+                              ),
+                              child: _isCapturing
+                                  ? const Padding(
+                                      padding: EdgeInsets.all(20),
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 3,
+                                      ),
+                                    )
+                                  : const Icon(
+                                      Icons.camera_alt,
+                                      color: Colors.white,
+                                      size: 32,
+                                    ),
+                            ),
+                          ),
+
                           // Reset zoom
                           _ControlButton(
                             icon: Icons.refresh,
@@ -134,16 +220,6 @@ class _CameraPageState extends State<CameraPage> {
                             onPressed: () async {
                               await _controller.resetZoom();
                               setState(() => _zoomLevel = 0.0);
-                            },
-                          ),
-
-                          // 2x zoom preset
-                          _ControlButton(
-                            icon: Icons.filter_2,
-                            label: '2x Zoom',
-                            onPressed: () async {
-                              await _controller.setZoomRatio(2.0);
-                              setState(() => _zoomLevel = 0.5);
                             },
                           ),
                         ],

@@ -13,6 +13,8 @@ import androidx.camera.core.CameraXConfig
 import androidx.camera.core.ExperimentalLensFacing
 import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.MeteringPoint
 import androidx.camera.core.MeteringPointFactory
 import androidx.camera.core.Preview
@@ -24,6 +26,7 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import io.flutter.plugins.nativeview.NativeView
+import java.io.File
 import java.util.concurrent.Executors
 
 /**
@@ -93,6 +96,18 @@ open class CameraSurfacePreview : NativeView() {
         fun resetScaleStatic() {
             currentInstance?.resetScale()
         }
+
+        /**
+         * Take a picture and save it to a temporary file.
+         */
+        fun takePictureStatic(
+            onSuccess: (String) -> Unit,
+            onError: (String) -> Unit
+        ) {
+            currentInstance?.takePicture(onSuccess, onError)
+                ?: onError("Camera not initialized")
+        }
+
     }
 
     // Internal variables
@@ -100,6 +115,7 @@ open class CameraSurfacePreview : NativeView() {
     public var camera: Camera? = null
     public var cameraSelector: CameraSelector? = null
     public var preview: Preview? = null
+    public var imageCapture: ImageCapture? = null
     public var surfaceView: AspectRatioSurfaceView? = null
     public var displayListener: DisplayManager.DisplayListener? = null
     public var analysisExecutor = Executors.newSingleThreadExecutor()
@@ -329,6 +345,22 @@ open class CameraSurfacePreview : NativeView() {
                 )
             preview = previewBuilder.build().apply { setSurfaceProvider(surfaceProvider) }
 
+            // Build image capture use case
+            imageCapture = ImageCapture.Builder()
+                .setTargetRotation(displayRotation)
+                .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+                .setResolutionSelector(
+                    ResolutionSelector.Builder()
+                        .setResolutionStrategy(
+                            ResolutionStrategy(
+                                cameraResolution,
+                                ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER
+                            )
+                        )
+                        .build()
+                )
+                .build()
+
             // Create optional image analysis (for subclasses like barcode scanner)
             val analysis = createImageAnalysis(displayRotation, cameraResolution)
 
@@ -359,13 +391,15 @@ open class CameraSurfacePreview : NativeView() {
                         activity as LifecycleOwner,
                         cameraPosition,
                         preview,
+                        imageCapture,
                         analysis
                     )
                 } else {
                     cameraProvider?.bindToLifecycle(
                         activity as LifecycleOwner,
                         cameraPosition,
-                        preview
+                        preview,
+                        imageCapture
                     )
                 }
                 cameraSelector = cameraPosition
@@ -462,6 +496,7 @@ open class CameraSurfacePreview : NativeView() {
         cameraProvider?.unbindAll()
         camera = null
         preview = null
+        imageCapture = null
         isPaused = false
 
         analysisExecutor.shutdown()
@@ -553,5 +588,52 @@ open class CameraSurfacePreview : NativeView() {
             .build()
 
         cam.cameraControl.startFocusAndMetering(action)
+    }
+
+    /**
+     * Take a picture and save it to a temporary file.
+     *
+     * @param onSuccess Callback invoked with the saved file path on success
+     * @param onError Callback invoked with error message on failure
+     */
+    fun takePicture(
+        onSuccess: (String) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        val capture = imageCapture
+        if (capture == null) {
+            onError("ImageCapture not initialized. Camera may not be started.")
+            return
+        }
+
+        val activity = context as? android.app.Activity
+        if (activity == null) {
+            onError("Activity context not available")
+            return
+        }
+
+        val outputFile = File.createTempFile(
+            "CAP_${System.currentTimeMillis()}",
+            ".jpg",
+            activity.cacheDir
+        )
+        val outputOptions = ImageCapture.OutputFileOptions.Builder(outputFile).build()
+
+        capture.takePicture(
+            outputOptions,
+            ContextCompat.getMainExecutor(activity),
+            object : ImageCapture.OnImageSavedCallback {
+                override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
+                    val savedPath = outputFileResults.savedUri?.path ?: outputFile.absolutePath
+                    Log.d(TAG, "Image saved to: $savedPath")
+                    onSuccess(savedPath)
+                }
+
+                override fun onError(exception: ImageCaptureException) {
+                    Log.e(TAG, "Image capture failed: ${exception.message}", exception)
+                    onError(exception.message ?: "Unknown error during image capture")
+                }
+            }
+        )
     }
 }
