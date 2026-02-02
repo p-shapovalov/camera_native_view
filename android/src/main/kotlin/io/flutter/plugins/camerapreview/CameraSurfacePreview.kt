@@ -39,6 +39,8 @@ open class CameraSurfacePreview : NativeView() {
     companion object {
         private const val TAG = "CameraSurfacePreview"
 
+        private var currentInstance: CameraSurfacePreview? = null
+
         fun configureCameraProcessProvider() {
             try {
                 val config = CameraXConfig.Builder.fromConfig(Camera2Config.defaultConfig()).apply {
@@ -48,6 +50,48 @@ open class CameraSurfacePreview : NativeView() {
             } catch (_: IllegalStateException) {
                 // The ProcessCameraProvider was already configured.
             }
+        }
+
+        /**
+         * Toggle the torch on the current instance.
+         */
+        fun toggleTorchStatic() {
+            currentInstance?.toggleTorch()
+        }
+
+        /**
+         * Enable the torch on the current instance.
+         */
+        fun enableTorchStatic() {
+            currentInstance?.enableTorch()
+        }
+
+        /**
+         * Disable the torch on the current instance.
+         */
+        fun disableTorchStatic() {
+            currentInstance?.disableTorch()
+        }
+
+        /**
+         * Set the zoom scale on the current instance.
+         */
+        fun setScaleStatic(scale: Double) {
+            currentInstance?.setScale(scale)
+        }
+
+        /**
+         * Set the zoom ratio on the current instance.
+         */
+        fun setZoomRatioStatic(zoomRatio: Double) {
+            currentInstance?.setZoomRatio(zoomRatio)
+        }
+
+        /**
+         * Reset the zoom scale on the current instance.
+         */
+        fun resetScaleStatic() {
+            currentInstance?.resetScale()
         }
     }
 
@@ -75,9 +119,11 @@ open class CameraSurfacePreview : NativeView() {
 
     init {
         configureCameraProcessProvider()
+        currentInstance = this
     }
 
     override fun onCreateView(): View {
+
         surfaceView = AspectRatioSurfaceView(context!!).apply {
             holder.addCallback(object : SurfaceHolder.Callback {
                 override fun surfaceCreated(holder: SurfaceHolder) {
@@ -132,6 +178,7 @@ open class CameraSurfacePreview : NativeView() {
     override fun onDispose() {
         super.onDispose()
         Log.d(TAG, "onDispose")
+        currentInstance = null
         releaseCamera(isDisposing = true)
     }
 
