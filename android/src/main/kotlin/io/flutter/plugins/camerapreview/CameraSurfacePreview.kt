@@ -1,7 +1,5 @@
 package io.flutter.plugins.camerapreview
 
-import android.content.Context
-import android.hardware.display.DisplayManager
 import android.util.Log
 import android.util.Size
 import android.view.SurfaceHolder
@@ -117,7 +115,6 @@ open class CameraSurfacePreview : NativeView() {
     public var preview: Preview? = null
     public var imageCapture: ImageCapture? = null
     public var surfaceView: AspectRatioSurfaceView? = null
-    public var displayListener: DisplayManager.DisplayListener? = null
     public var analysisExecutor = Executors.newSingleThreadExecutor()
     public var isPaused = false
 
@@ -217,12 +214,10 @@ open class CameraSurfacePreview : NativeView() {
      * Create an optional ImageAnalysis use case for subclasses.
      * Override this method to add image analysis (e.g., barcode scanning).
      *
-     * @param displayRotation The current display rotation
      * @param cameraResolution The camera resolution
      * @return An ImageAnalysis use case, or null if not needed
      */
     public open fun createImageAnalysis(
-        displayRotation: Int,
         cameraResolution: Size
     ): ImageAnalysis? {
         return null
@@ -301,9 +296,6 @@ open class CameraSurfacePreview : NativeView() {
 
             cameraProvider?.unbindAll()
 
-            // Get the display rotation for proper orientation
-            val displayRotation = activity.windowManager.defaultDisplay.rotation
-
             // Create Preview.SurfaceProvider for SurfaceView
             val surfaceProvider = Preview.SurfaceProvider { request ->
                 val surface = surfaceView?.holder?.surface
@@ -329,10 +321,8 @@ open class CameraSurfacePreview : NativeView() {
                 }
             }
 
-            // Build the preview with target rotation
             val cameraResolution = cameraResolutionWanted ?: Size(1920, 1080)
             val previewBuilder = Preview.Builder()
-                .setTargetRotation(displayRotation)
                 .setResolutionSelector(
                     ResolutionSelector.Builder()
                         .setResolutionStrategy(
@@ -345,9 +335,7 @@ open class CameraSurfacePreview : NativeView() {
                 )
             preview = previewBuilder.build().apply { setSurfaceProvider(surfaceProvider) }
 
-            // Build image capture use case
             imageCapture = ImageCapture.Builder()
-                .setTargetRotation(displayRotation)
                 .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
                 .setResolutionSelector(
                     ResolutionSelector.Builder()
@@ -361,21 +349,7 @@ open class CameraSurfacePreview : NativeView() {
                 )
                 .build()
 
-            // Create optional image analysis (for subclasses like barcode scanner)
-            val analysis = createImageAnalysis(displayRotation, cameraResolution)
-
-            // Register display listener for resolution changes
-            val displayManager = activity.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
-            if (displayListener == null) {
-                displayListener = object : DisplayManager.DisplayListener {
-                    override fun onDisplayAdded(displayId: Int) {}
-                    override fun onDisplayRemoved(displayId: Int) {}
-                    override fun onDisplayChanged(displayId: Int) {
-                        // Handle display changes if needed
-                    }
-                }
-                displayManager.registerDisplayListener(displayListener, null)
-            }
+            val analysis = createImageAnalysis(cameraResolution)
 
             // Check if surface is still valid before binding
             val surface = surfaceView?.holder?.surface
@@ -476,13 +450,6 @@ open class CameraSurfacePreview : NativeView() {
 
     public open fun releaseCamera(isDisposing: Boolean = false) {
         val activity = context as? android.app.Activity
-
-        if (displayListener != null && activity != null) {
-            val displayManager = activity.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
-            displayManager.unregisterDisplayListener(displayListener)
-            displayListener = null
-        }
-
         val owner = activity as? LifecycleOwner
 
         camera?.cameraInfo?.let {
